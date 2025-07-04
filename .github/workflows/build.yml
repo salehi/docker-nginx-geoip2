@@ -1,0 +1,53 @@
+name: Build and Push nginx-geoip2
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Run on the 1st of every month at 2 AM UTC
+    - cron: '0 2 1 * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  build:
+    runs-on: debian-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Set current date
+      run: echo "BUILD_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./docker-nginx/modules
+        file: ./docker-nginx/modules/Dockerfile
+        platforms: linux/amd64
+        push: true
+        tags: |
+          s4l3h1/nginx-geoip2:latest
+          s4l3h1/nginx-geoip2:${{ env.BUILD_DATE }}
+        build-args: |
+          ENABLED_MODULES=geoip2
+          
+    - name: Update Docker Hub description
+      uses: peter-evans/dockerhub-description@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        repository: s4l3h1/nginx-geoip2
+        short-description: "Nginx with GeoIP2 module and MaxMind GeoLite2 databases"
+        readme-filepath: ./README.md
